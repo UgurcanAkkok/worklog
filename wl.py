@@ -2,6 +2,7 @@
 ## TODO: add -i <WORKID> to s command
 ## TODO: integrate with kitty to open the issue in the browser easily (?)
 ## TODO: Is the data format good enough? Should we replace it or is it enough ?
+## TODO: Simplify aliases? e.g. simplify assigning JIRA-000000 for misc stuff, JIRA-000000 for dailies etc.
 import os
 import re
 import argparse
