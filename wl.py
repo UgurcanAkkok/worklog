@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-## TODO: integrate with kitty to open the issue in the browser easily (?)
 ## TODO: Is the data format good enough? Should we replace it or is it enough ?
 import os
 import re
