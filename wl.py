@@ -69,6 +69,8 @@ class WorkPage():
         total_time = timedelta() 
         for header  in self.get_headers():
             if id is not None:
+                if id == "break" or id == "Break":
+                    id = "NO_ID"
                 if (header.workid == id):
                     total_time += header.duration()
             else:
@@ -113,13 +115,22 @@ class WorkPage():
         os.system(f"{editor} {self.page}")
         return
 
-    def show(self):
+    def show(self, id=None):
         with open(self.page, "r") as page:
             print(f"#WL# Date: {self.day.strftime('%x')}")
+            inside_given_id = False
+            if id == "Break" or id == "break":
+                id = "NO_ID"
             for line in page:
                 line = line.strip()
                 if re.search("#WL.*#WL", line):
                     wl = WorkLog.from_str(line)
+                    # if id is given and not matching, skip it. otherwise, switch the inside_given_id flag True and continue printing
+                    if id is not None and wl.workid != id:
+                        inside_given_id = False
+                        continue
+                    elif id is not None and wl.workid == id:
+                        inside_given_id = True
                     line_to_print = "#WL# "
                     if wl.workid == "NO_ID":
                         line_to_print = line_to_print + "Break\t"
@@ -130,7 +141,11 @@ class WorkPage():
                     line_to_print = line_to_print + f"= {duration / 60} minutes"
                     print(line_to_print)
                 else:
-                    print(line)
+                    # if id is given and we are not inside_given_id, skip, otherwise, print
+                    if id is not None and inside_given_id is False:
+                        continue
+                    else:
+                        print(line)
         return
 
 def main(args):
@@ -162,7 +177,7 @@ def main(args):
     elif args.command_name in ["edit", "e"]:
         wp.edit()
     elif args.command_name in ["show", "s"]:
-        wp.show()
+        wp.show(args.id)
     else:
         print("Arguments not understood")
         return 1
@@ -183,9 +198,10 @@ if __name__ == "__main__":
     calculate_parser.add_argument("--total", "-t", action="store_true", default=False)
     calculate_parser.add_argument("--work",  "-w", action="store_true", default=False, help="Default type if none given")
     calculate_parser.add_argument("--all",   "-a", action="store_true", default=False, help="Calculate all types")
-    calculate_parser.add_argument("--id",    "-i", action="store",      metavar="ID", help="Calculate all types")
+    calculate_parser.add_argument("--id",    "-i", action="store",      metavar="ID", help="Calculate the given id")
     edit_parser = sub_parsers.add_parser("edit", aliases=["e"])
     show_parser = sub_parsers.add_parser("show", aliases=["s"])
+    show_parser.add_argument("--id", "-i", action="store", metavar="ID", help="Show only the given id")
 
     args = parser.parse_args()
     main(args)
