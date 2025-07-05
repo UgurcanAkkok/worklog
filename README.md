@@ -13,3 +13,12 @@ A daily workflow is as follows:
 - You can generate reports too! You simply type `wl c` for the current day or `wl c -p 2` for the 2nd previous day. You can even generate the reports for a specific jira issue or breaks! You simply type either `wl c -i JIRA-1111` or `wl c -b`.
 
 This tool is intentionally kept simple, because anyone can wrap their heads around it very easily and bend it to their will. If you have any pull requests or feature requests, send them away!
+
+For misc. stuff that does not have a specific jira issue id, for example responding to immediate support requests or daily meetings, you can define abbrevations or aliases in your shell. For example in fish, you would do:
+
+```sh
+abbr --set-cursor -a -- wlops "wl w JIRA-000000 -m '%'" # Misc stuff that does not have an assigned issue, like recurring operations, helping colleagues or pairing with others.
+abbr --set-cursor -a -- wldaily "wl w JIRA-000001 -m 'Daily %'" # Recurring meetings etc.
+```
+
+This way, you are assigning id's to these part of your time and you can track it in this tool. It is very practical ;)
