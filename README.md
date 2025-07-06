@@ -23,7 +23,7 @@ abbr --set-cursor -a -- wldaily "wl w JIRA-000001 -m 'Daily %'" # Recurring meet
 
 This way, you are assigning id's to these part of your time and you can track it in this tool. It is very practical ;)
 
-Example worklog:
+Example worklog file:
 ```
 #WL#WORKID:BRP-000001#START:09.30#END:09.30#WL
 #WL#WORKID:BRP-000001#START:09.30#END:09.39#WL
