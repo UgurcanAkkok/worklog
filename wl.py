@@ -20,7 +20,7 @@ class WorkLog():
             workid="NO_ID",
             start=dt.now().time(),
             end=dt.now().time(),
-            comment=None
+            comment: str | None = None
             ):
         self.start_time = start
         self.end_time = end
@@ -106,13 +106,13 @@ class WorkPage():
                 duration += wl.duration()
         return duration.total_seconds() / 60
 
-    def add_break(self, comment):
+    def add_break(self, comment: str):
         start = self.worklogs[-1].end_time
         wl = WorkLog(start=start,comment=comment)
         self.add_wl(wl)
         return
 
-    def add_work(self, work_id, comment):
+    def add_work(self, work_id: str, comment: str):
         start = self.worklogs[-1].end_time
         wl = WorkLog(start=start, workid=work_id, comment=comment)
         self.add_wl(wl)
@@ -121,7 +121,7 @@ class WorkPage():
     def add_wl(self, worklog: WorkLog):
         self.worklogs.append(worklog)
         with open(self.page, 'a') as page:
-            page.write(str(worklog))
+            page.write("\n" + str(worklog))
 
     def edit(self):
         editor = os.environ['EDITOR']
@@ -130,7 +130,7 @@ class WorkPage():
         os.system(f"{editor} {self.page}")
         return
 
-    def show(self, id=None):
+    def show(self, id: str|None =None):
         print(f"#WL# Date: {self.day.strftime('%x')}")
         if id == "break" or id == "Break":
             id = "NO_ID"
@@ -147,9 +147,9 @@ def main(args):
     else:
         wp = WorkPage()
     if args.command_name in ["break", "b"]:
-        wp.add_break(args.message)
+        wp.add_break("\n".join(args.message))
     elif args.command_name in ["work", "w"]:
-        wp.add_work(args.id, args.message)
+        wp.add_work(args.id, "\n".join(args.message))
     elif args.command_name in ["calculate", "calc", "c"]:
         if args.id is not None and args.id != '':
             issue_dur = wp.calc_duration_issue(id=args.id)
