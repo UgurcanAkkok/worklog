@@ -14,8 +14,8 @@ class WorkLog():
         Daily meeting
     """
     _TIME_FORMAT = "%H.%M"
-    ##                ^#WL#WORKID:        JIRA-000000   #START:                09       .                   10      #END:              09       .                 30      #WL (newline)    did work (until not including newline + #WL)
-    WORKLOG_REGEX = r"^#WL#WORKID:(?P<id>[A-Za-z0-9_-]+)#START:(?P<start_hour>[0-9]{2})\.(?P<start_minutes>[0-9]{2})#END:(?P<end_hour>[0-9]{2})\.(?P<end_minutes>[0-9]{2})#WL\n(?P<comment>[\s\S]*?)(?=\n?^#WL|\Z)"
+    ##                ^#WL#WORKID:        JIRA-000000   #START:                09       .                   10      #END:              09       .                 30      #WL(newline)         did work(until not including newline + #WL)
+    WORKLOG_REGEX = r"^#WL#WORKID:(?P<id>[A-Za-z0-9_-]+)#START:(?P<start_hour>[0-9]{2})\.(?P<start_minutes>[0-9]{2})#END:(?P<end_hour>[0-9]{2})\.(?P<end_minutes>[0-9]{2})#WL(\n)?(?P<comment>[\s\S]*?)(?=\n?^#WL|\Z)"
     def __init__(self,
             workid="NO_ID",
             start=dt.now().time(),
@@ -30,9 +30,9 @@ class WorkLog():
         start = self.start_time.strftime(self._TIME_FORMAT)
         end = self.end_time.strftime(self._TIME_FORMAT)
         if self.comment is not None and self.comment != "":
-            return f"#WL#WORKID:{self.workid}#START:{start}#END:{end}#WL" + "\n" + self.comment
+            return f"#WL#WORKID:{self.workid}#START:{start}#END:{end}#WL" + "\n" + self.comment + "\n"
         else:
-            return f"#WL#WORKID:{self.workid}#START:{start}#END:{end}#WL"
+            return f"#WL#WORKID:{self.workid}#START:{start}#END:{end}#WL" + "\n"
 
     def pretty(self) -> str:
         wl = ""
@@ -121,7 +121,7 @@ class WorkPage():
     def add_wl(self, worklog: WorkLog):
         self.worklogs.append(worklog)
         with open(self.page, 'a') as page:
-            page.write("\n" + str(worklog))
+            page.write(str(worklog))
 
     def edit(self):
         editor = os.environ['EDITOR']
