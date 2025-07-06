@@ -8,103 +8,121 @@ from datetime import timedelta
 from datetime import time
 
 class WorkLog():
+    """
+    Example worklog:
+        #WL#WORKID:JIRA-000001#START:09.30#END:09.39#WL
+        Daily meeting
+    """
     _TIME_FORMAT = "%H.%M"
-    def __init__(self, 
-            workid="NO_ID", 
-            start=dt.now().time(), 
-            end=dt.now().time(), 
+    ##                ^#WL#WORKID:        JIRA-000000   #START:                09       .                   10      #END:              09       .                 30      #WL (newline)    did work (until not including newline + #WL)
+    WORKLOG_REGEX = r"^#WL#WORKID:(?P<id>[A-Za-z0-9_-]+)#START:(?P<start_hour>[0-9]{2})\.(?P<start_minutes>[0-9]{2})#END:(?P<end_hour>[0-9]{2})\.(?P<end_minutes>[0-9]{2})#WL\n(?P<comment>[\s\S]*?)(?=\n?^#WL|\Z)"
+    def __init__(self,
+            workid="NO_ID",
+            start=dt.now().time(),
+            end=dt.now().time(),
+            comment=None
             ):
         self.start_time = start
         self.end_time = end
         self.workid = workid
+        self.comment = comment
     def __str__(self) -> str:
         start = self.start_time.strftime(self._TIME_FORMAT)
         end = self.end_time.strftime(self._TIME_FORMAT)
-        return  "#WL" + \
-                f"#WORKID:{self.workid}" + \
-                f"#START:{start}" + \
-                f"#END:{end}" + \
-                "#WL"
+        if self.comment is not None and self.comment != "":
+            return f"#WL#WORKID:{self.workid}#START:{start}#END:{end}#WL" + "\n" + self.comment
+        else:
+            return f"#WL#WORKID:{self.workid}#START:{start}#END:{end}#WL"
+
+    def pretty(self) -> str:
+        wl = ""
+        wl += "#WL# "
+        id = self.workid
+        if id == "NO_ID":
+            id = "Break"
+        wl += id + "\t"
+        wl += f"{self.start_time.strftime(WorkLog._TIME_FORMAT)} - {self.end_time.strftime(WorkLog._TIME_FORMAT)} "
+        wl += f"= {self.duration().total_seconds() / 60} minutes"
+        if self.comment is not None and self.comment != "":
+            wl += "\n" + self.comment
+        return wl
+
     def duration(self) -> timedelta:
         start = timedelta(hours=self.start_time.hour, minutes=self.start_time.minute)
         end = timedelta(hours=self.end_time.hour, minutes=self.end_time.minute)
         return end - start
 
-    @staticmethod
-    def from_str(header_data: str):
-        start = re.search("#START:(.*?)#", header_data).group(1)
-        end = re.search("#END:(.*?)#", header_data).group(1)
-        workid = re.search("#WORKID:(.*?)#", header_data).group(1)
-        start = dt.strptime(start, WorkLog._TIME_FORMAT)
-        end = dt.strptime(end, WorkLog._TIME_FORMAT)
-        return WorkLog(workid, start, end)
-
 class WorkPage():
+    """
+    Example workpage .worklog/2025.25/06.27:
+        #WL#WORKID:BRP-000001#START:09.30#END:09.30#WL
+        #WL#WORKID:BRP-000001#START:09.30#END:09.39#WL
+        Daily meeting
+        #WL#WORKID:BRP-000000#START:09.39#END:17.00#WL
+        did work all day
+    """
     def __init__(self, day=dt.now().date()):
         self.day = day
         self._PAGE_DIR = os.environ["HOME"] + "/.worklog/" + day.strftime("%Y.%W")
         self.page = self._PAGE_DIR + day.strftime('/%m.%d')
+        self.worklogs: list[WorkLog] = [] 
         os.makedirs(self._PAGE_DIR, mode=0o755, exist_ok=True)
         if not os.path.exists(self.page) or os.path.getsize(self.page) <= 0:
-            self.write_header(WorkLog())
+            self.add_wl(WorkLog())
+        else:
+            # Parse the page.
+            wl_regex = re.compile(WorkLog.WORKLOG_REGEX, re.MULTILINE)
+            with open(self.page, 'r') as page:
+                page_content = page.read()
+                for match in wl_regex.finditer(page_content):
+                    id = match.group("id")
+                    start = time(int(match.group("start_hour")), int(match.group("start_minutes")))
+                    end = time(int(match.group("end_hour")), int(match.group("end_minutes")))
+                    comment = match.group("comment")
+                    wl = WorkLog(id, start, end, comment)
+                    self.worklogs.append(wl)
 
-    def get_headers_str(self):
-        headers = [str(wl) for wl in self.get_headers()]
-        return headers
-
-    def get_headers(self):
-        rgx = re.compile("#WL(.*#)WL")
-        headers = []
-        with open(self.page, 'r') as page:
-            for line in page.readlines():
-                match = rgx.match(line)
-                if match is not None:
-                    headers.append(WorkLog.from_str(match.group(1)))
-        return headers
-
-    def calc_duration(self, id=None, calc_work=False, calc_break=False):
-        total_time = timedelta() 
-        for header  in self.get_headers():
-            if id is not None:
-                if id == "break" or id == "Break":
-                    id = "NO_ID"
-                if (header.workid == id):
-                    total_time += header.duration()
+    def calc_duration_day(self) -> tuple[float, float, float]:
+        """
+            Returns: (total_time, work_time, break_time)
+        """
+        total_time = timedelta()
+        work_time = timedelta()
+        break_time = timedelta()
+        for wl in self.worklogs:
+            if wl.workid == "NO_ID":
+                break_time += wl.duration()
             else:
-                if (calc_break and header.workid == "NO_ID") or \
-                        (calc_work and header.workid != "NO_ID"):
-                    total_time += header.duration()
-        return total_time.total_seconds() / 60
+                work_time += wl.duration()
+            total_time += wl.duration()
+        return (total_time.total_seconds() / 60, work_time.total_seconds() / 60, break_time.total_seconds() / 60)
 
-    def write_header(self, wl):
+    def calc_duration_issue(self, id=None) -> float:
+        duration = timedelta()
+        if id == "Break" or id == "break":
+            id = "NO_ID"
+        for wl in self.worklogs:
+            if id == wl.workid:
+                duration += wl.duration()
+        return duration.total_seconds() / 60
+
+    def add_break(self, comment):
+        start = self.worklogs[-1].end_time
+        wl = WorkLog(start=start,comment=comment)
+        self.add_wl(wl)
+        return
+
+    def add_work(self, work_id, comment):
+        start = self.worklogs[-1].end_time
+        wl = WorkLog(start=start, workid=work_id, comment=comment)
+        self.add_wl(wl)
+        return
+
+    def add_wl(self, worklog: WorkLog):
+        self.worklogs.append(worklog)
         with open(self.page, 'a') as page:
-            page.write(str(wl) + "\n")
-        return
+            page.write(str(worklog))
 
-    def get_prev_end(self) -> time:
-        """ Get the previous end time, e.g. to use as the start time """
-        last_header = self.get_headers()[-1]
-        return last_header.end_time 
-
-    def add_break(self):
-        start = self.get_prev_end()
-        wl = WorkLog(start=start)
-        self.write_header(wl)
-        return
-    
-    def add_work(self, work_id):
-        start = self.get_prev_end()
-        wl = WorkLog(start=start, workid=work_id)
-        self.write_header(wl)
-        return
-
-    def add_comment(self,comment):
-        if comment is not None:
-            with open(self.page, 'a') as page:
-                for c in comment:
-                    page.write(c + "\n")
-        return
-    
     def edit(self):
         editor = os.environ['EDITOR']
         if editor is None or len(editor) <= 0:
@@ -113,37 +131,12 @@ class WorkPage():
         return
 
     def show(self, id=None):
-        with open(self.page, "r") as page:
-            print(f"#WL# Date: {self.day.strftime('%x')}")
-            inside_given_id = False
-            if id == "Break" or id == "break":
-                id = "NO_ID"
-            for line in page:
-                line = line.strip()
-                if re.search("#WL.*#WL", line):
-                    wl = WorkLog.from_str(line)
-                    # if id is given and not matching, skip it. otherwise, switch the inside_given_id flag True and continue printing
-                    if id is not None and wl.workid != id:
-                        inside_given_id = False
-                        continue
-                    elif id is not None and wl.workid == id:
-                        inside_given_id = True
-                    line_to_print = "#WL# "
-                    if wl.workid == "NO_ID":
-                        line_to_print = line_to_print + "Break\t"
-                    else:
-                        line_to_print = line_to_print + wl.workid + "\t"
-                    line_to_print = line_to_print + f" {wl.start_time.strftime(WorkLog._TIME_FORMAT)} - {wl.end_time.strftime(WorkLog._TIME_FORMAT)} "
-                    duration = wl.duration().total_seconds()
-                    line_to_print = line_to_print + f"= {duration / 60} minutes"
-                    print(line_to_print)
-                else:
-                    # if id is given and we are not inside_given_id, skip, otherwise, print
-                    if id is not None and inside_given_id is False:
-                        continue
-                    else:
-                        print(line)
-        return
+        print(f"#WL# Date: {self.day.strftime('%x')}")
+        if id == "break" or id == "Break":
+            id = "NO_ID"
+        for wl in self.worklogs:
+            if id is None or id == wl.workid:
+                print(wl.pretty())
 
 def main(args):
     wp = None
@@ -154,23 +147,23 @@ def main(args):
     else:
         wp = WorkPage()
     if args.command_name in ["break", "b"]:
-        wp.add_break()
-        wp.add_comment(args.message)
+        wp.add_break(args.message)
     elif args.command_name in ["work", "w"]:
-        wp.add_work(args.id)
-        wp.add_comment(args.message)
+        wp.add_work(args.id, args.message)
     elif args.command_name in ["calculate", "calc", "c"]:
         if args.id is not None and args.id != '':
-            print(f"Total time for {args.id} is {wp.calc_duration(id=args.id)} minutes")
+            issue_dur = wp.calc_duration_issue(id=args.id)
+            print(f"Total time for {args.id} is {issue_dur} minutes")
         else:
+            total_dur, work_dur, break_dur = wp.calc_duration_day()
             if not args.breakoff and not args.total:
                 args.work = True
             if args.breakoff or args.all:
-                print(f"Total break time is {wp.calc_duration(calc_break=True)} minutes")
+                print(f"Total break time is {break_dur} minutes")
             if args.work or args.all:
-                print(f"Total work  time is {wp.calc_duration(calc_work=True)} minutes")
+                print(f"Total work  time is {work_dur} minutes")
             if args.total or args.all:
-                print(f"Total spent time is {wp.calc_duration(calc_break=True, calc_work=True)} minutes")
+                print(f"Total spent time is {total_dur} minutes")
     elif args.command_name in ["edit", "e"]:
         wp.edit()
     elif args.command_name in ["show", "s"]:
